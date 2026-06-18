@@ -452,27 +452,37 @@ def adicionar_texto_premium(img_bytes, dados_esteticos):
         W = 1080 * sf
         H = int(W / target_ratio)
 
-        # Cria canvas com fundo borrado
-        img_base = img_orig.resize((W, H), Image.Resampling.LANCZOS)
-        canvas = img_base.copy().filter(ImageFilter.GaussianBlur(15 * sf))
+        from PIL import ImageOps
+        # 1. Fundo Borrado (Impacto Viral) - cobre a tela toda sem bordas
+        canvas = ImageOps.fit(img_orig, (W, H), method=Image.Resampling.LANCZOS)
+        canvas = canvas.filter(ImageFilter.GaussianBlur(15 * sf))
         canvas = ImageEnhance.Brightness(canvas).enhance(0.35)
 
-        # Overlay com gradiente laranja-escuro Shopee no fundo
+        # Overlay com gradiente laranja-escuro Shopee no fundo inferior
         overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw_ov = ImageDraw.Draw(overlay)
         grad_h = int(H * 0.55)
         for y in range(H - grad_h, H):
-            alpha = int(200 * ((y - (H - grad_h)) / grad_h))
-            draw_ov.line([(0, y), (W, y)], fill=(255, 87, 34, min(180, alpha)))
+            alpha = int(220 * ((y - (H - grad_h)) / grad_h))
+            draw_ov.line([(0, y), (W, y)], fill=(255, 87, 34, min(200, alpha)))
         canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
 
-        # Redimensiona a foto nítida e cola no centro superior
-        orig_w, orig_h = img_orig.size
-        rw = (W * 0.8) / orig_w
-        img_sharp = img_orig.resize((int(orig_w * rw), int(orig_h * rw)), Image.Resampling.LANCZOS)
+        # 2. Imagem Nítida Central (Respeitando qualquer aspect ratio - 16:9, etc)
+        max_w = int(W * 0.85)
+        max_h = int(H * 0.55)
+        img_sharp = img_orig.copy()
+        img_sharp.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
 
-        paste_x = (W - int(orig_w * rw)) // 2
-        paste_y = int(H * 0.08)
+        # Sombra leve atrás da imagem principal
+        shadow = Image.new("RGBA", (img_sharp.width + int(30*sf), img_sharp.height + int(30*sf)), (0, 0, 0, 0))
+        draw_sh = ImageDraw.Draw(shadow)
+        draw_sh.rectangle([int(15*sf), int(15*sf), shadow.width, shadow.height], fill=(0, 0, 0, 150))
+        shadow = shadow.filter(ImageFilter.GaussianBlur(15*sf))
+
+        paste_x = (W - img_sharp.width) // 2
+        paste_y = int(H * 0.1)
+
+        canvas.paste(shadow, (paste_x - int(15*sf), paste_y - int(15*sf)), shadow)
         canvas.paste(img_sharp, (paste_x, paste_y))
 
         # Cria a camada de texto transparente
@@ -488,30 +498,31 @@ def adicionar_texto_premium(img_bytes, dados_esteticos):
             f_text = ImageFont.load_default()
             f_brand = ImageFont.load_default()
 
-        # Tag laranja Shopee
-        tag_y = int(H * 0.63)
+        # Tag laranja Shopee "BOMBA" sobrepondo o canto da imagem
+        tag_y = paste_y - int(30 * sf)
+        if tag_y < int(20 * sf): tag_y = int(20 * sf)
         bbox = draw.textbbox((0, 0), tag_texto, font=f_tag)
         tag_w = bbox[2] - bbox[0] + (60 * sf)
 
-        # Fundo da tag com cor laranja Shopee
-        draw.rectangle([int(W * 0.1), tag_y, int(W * 0.1) + tag_w, tag_y + int(70 * sf)], fill=(255, 87, 34))
-        draw.text((int(W * 0.1) + (tag_w // 2), tag_y + int(35 * sf)), tag_texto, fill="white", font=f_tag, anchor="mm")
+        draw.rectangle([paste_x - int(15*sf), tag_y, paste_x - int(15*sf) + tag_w, tag_y + int(70 * sf)], fill=(255, 87, 34))
+        draw.text((paste_x - int(15*sf) + (tag_w // 2), tag_y + int(35 * sf)), tag_texto, fill="white", font=f_tag, anchor="mm")
 
-        # Linha vertical laranja ao lado do texto
-        line_y1 = int(H * 0.73)
-        line_y2 = int(H * 0.91)
-        draw.line([(int(W * 0.1) - int(20 * sf), line_y1), (int(W * 0.1) - int(20 * sf), line_y2)], fill=(255, 87, 34), width=int(12 * sf))
-
-        # Texto principal
-        texto_puro = limpar_emojis(texto)
+        # Texto principal (Caixa Alta e Bold)
+        texto_puro = limpar_emojis(texto).upper()
         import textwrap
-        lines = textwrap.wrap(texto_puro, width=20)
-        y_text = int(H * 0.73)
+        lines = textwrap.wrap(texto_puro, width=18)
+        
+        y_text = paste_y + img_sharp.height + int(60 * sf)
+        
+        # Barras verticais de impacto ao lado do texto
+        bar_x = int(W * 0.06)
+        draw.line([(bar_x, y_text), (bar_x, y_text + len(lines) * int(85 * sf))], fill=(255, 87, 34), width=int(18 * sf))
+
         for line in lines:
-            draw.text((int(W * 0.1), y_text), line, fill="white", font=f_text)
+            draw.text((bar_x + int(40 * sf), y_text), line, fill="white", font=f_text)
             y_text += int(85 * sf)
 
-        # Marca da Rainha da Shopee no rodapé
+        # Marca da Rainha da Shopee no rodapé em dourado
         draw.text((W // 2, int(H * 0.96)), "🛍️ RAINHA DA SHOPEE", fill=(255, 193, 7), font=f_brand, anchor="mm")
 
         return canvas, text_layer
