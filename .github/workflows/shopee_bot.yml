@@ -27,11 +27,8 @@ jobs:
       - name: 🌐 Instalar Playwright + Chromium
         run: python -m playwright install --with-deps chromium
 
-      - name: Install FFmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          ffmpeg -version
+      - name: 🎬 Instalar FFmpeg
+        uses: AnimMouse/setup-ffmpeg@v1
 
       - name: 🛍️ Rodar Bot Rainha da Shopee
         env:
